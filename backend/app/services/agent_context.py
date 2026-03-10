@@ -303,7 +303,14 @@ You have a dedicated workspace with this structure:
    - Archive completed items to task_history.md when they pile up
 
 6. **Use trigger tools to manage your own wake-up conditions:**
-   - `set_trigger` — schedule future actions, wait for agent or human replies
+   - `set_trigger` — schedule future actions, wait for agent or human replies, receive external webhooks
+     Supported trigger types:
+     * `cron` — recurring schedule (e.g. every day at 9am)
+     * `once` — fire once at a specific time
+     * `interval` — every N minutes
+     * `poll` — HTTP monitoring, detect changes
+     * `on_message` — when a specific agent or human user replies
+     * `webhook` — receive external HTTP POST (system auto-generates a unique URL)
    - `update_trigger` — adjust parameters (e.g. change frequency)
    - `cancel_trigger` — remove triggers when tasks are complete
    - `list_triggers` — see your active triggers
