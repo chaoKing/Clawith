@@ -171,7 +171,7 @@ BUILTIN_TOOLS = [
     {
         "name": "send_channel_file",
         "display_name": "Send File",
-        "description": "Send a file to a specific person or back to the current conversation. If member_name is provided, the system resolves the recipient across all connected channels (Feishu, Slack, etc.) and delivers the file via the appropriate channel.",
+        "description": "Send a file to a specific person, digital employee, or back to the current conversation. If member_name matches another digital employee, the file is copied to their workspace/inbox/.",
         "category": "communication",
         "icon": "📎",
         "is_default": True,
@@ -179,7 +179,7 @@ BUILTIN_TOOLS = [
             "type": "object",
             "properties": {
                 "file_path": {"type": "string", "description": "Workspace-relative path to the file"},
-                "member_name": {"type": "string", "description": "Name of the person to send the file to. The system looks up this person across all configured channels and delivers via the appropriate one."},
+                "member_name": {"type": "string", "description": "Name of the recipient (person or digital employee). For digital employees, the file will be saved to their workspace/inbox/."},
                 "message": {"type": "string", "description": "Optional message to accompany the file"},
             },
             "required": ["file_path"],

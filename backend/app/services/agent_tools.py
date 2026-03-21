@@ -205,7 +205,7 @@ AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "send_channel_file",
-            "description": "Send a file to a specific person or back to the current conversation. If member_name is provided, the system resolves the recipient across all connected channels (Feishu, Slack, etc.) and delivers the file via the appropriate channel. If member_name is omitted, the file is sent back through the current conversation channel.",
+            "description": "Send a file to a specific person, digital employee, or back to the current conversation. If member_name is provided: (1) If it matches another digital employee's name, the file is copied to their workspace/inbox/; (2) Otherwise, the system resolves the recipient across all connected channels (Feishu, Slack, etc.) and delivers the file via the appropriate channel. If member_name is omitted, the file is sent back through the current conversation channel.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -215,7 +215,7 @@ AGENT_TOOLS = [
                     },
                     "member_name": {
                         "type": "string",
-                        "description": "Name of the person to send the file to. If provided, the system looks up this person across all configured channels and delivers via the appropriate one.",
+                        "description": "Name of the recipient (person or digital employee). For digital employees, the file will be saved to their workspace/inbox/.",
                     },
                     "message": {
                         "type": "string",
@@ -1571,14 +1571,54 @@ async def _send_file_to_recipient(
     agent_id: uuid.UUID, file_path: Path, member_name: str, message: str = ""
 ) -> str | None:
     """Resolve a recipient by name and send file via their reachable channel.
-    
-    Checks Feishu and Slack channels configured for this agent.
-    Returns a result string, or None if no channel found.
+
+    Priority:
+    1. If member_name matches another digital employee, copy file to their workspace.
+    2. Otherwise, check Feishu and Slack channels configured for this agent.
+
+    Returns a result string, or None if no recipient found.
     """
+    import shutil
+
+    from app.models.agent import Agent
     from app.models.channel_config import ChannelConfig
 
     async with async_session() as db:
-        # Load all channel configs for this agent
+        # Priority 1: Check if recipient is another digital employee
+        agent_result = await db.execute(
+            select(Agent).where(Agent.name.ilike(f"%{member_name}%"), Agent.id != agent_id)
+        )
+        target_agent = agent_result.scalars().first()
+
+        if target_agent:
+            # Copy file to target agent's workspace inbox
+            target_workspace = WORKSPACE_ROOT / str(target_agent.id) / "workspace"
+            target_workspace.mkdir(parents=True, exist_ok=True)
+
+            # Create inbox subdirectory for received files
+            inbox_dir = target_workspace / "inbox"
+            inbox_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate unique filename to avoid conflicts
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            target_file = inbox_dir / f"{timestamp}_{file_path.name}"
+
+            # Handle filename conflicts
+            counter = 1
+            while target_file.exists():
+                target_file = inbox_dir / f"{timestamp}_{counter}_{file_path.name}"
+                counter += 1
+
+            shutil.copy2(file_path, target_file)
+
+            # Save accompanying message if provided
+            if message:
+                msg_file = target_file.with_suffix(target_file.suffix + ".msg.txt")
+                msg_file.write_text(message, encoding="utf-8")
+
+            return f"✅ File '{file_path.name}' sent to digital employee '{target_agent.name}'. Saved to their workspace/inbox/."
+
+        # Priority 2: Load channel configs for human recipients
         result = await db.execute(
             select(ChannelConfig).where(ChannelConfig.agent_id == agent_id)
         )
